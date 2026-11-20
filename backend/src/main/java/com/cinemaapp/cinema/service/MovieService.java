@@ -1,8 +1,11 @@
 package com.cinemaapp.cinema.service;
 
+import com.cinemaapp.cinema.dto.MovieRequest;
+import com.cinemaapp.cinema.dto.MovieResponse;
 import com.cinemaapp.cinema.entity.Movie;
 import com.cinemaapp.cinema.repository.MovieRepository;
 import org.springframework.stereotype.Service;
+import com.cinemaapp.cinema.exception.ResourceNotFoundException;
 
 import java.util.List;
 import java.util.Optional;
@@ -17,49 +20,81 @@ public class MovieService {
     }
 
     // Retrieve all movies
-    public List<Movie> getAllMovies() {
-        return movieRepository.findAll();
+    public List<MovieResponse> getAllMovies() {
+
+        return movieRepository.findAll()
+                .stream()
+                .map(this::convertToResponse)
+                .toList();
     }
 
     // Retrieve one movie by ID
-    public Optional<Movie> getMovieById(Long id) {
-        return movieRepository.findById(id);
+    public MovieResponse getMovieById(Long id) {
+
+        Movie movie = movieRepository.findById(id)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Movie not found with id: " + id
+                        )
+                );
+
+        return convertToResponse(movie);
     }
 
     // Create a new movie
-    public Movie createMovie(Movie movie) {
-        return movieRepository.save(movie);
+    public MovieResponse createMovie(MovieRequest request) {
+
+        Movie movie = new Movie(
+                request.getTitle(),
+                request.getDescription(),
+                request.getDurationMinutes()
+        );
+
+        Movie savedMovie = movieRepository.save(movie);
+
+        return convertToResponse(savedMovie);
     }
 
     // Update an existing movie
-    public Optional<Movie> updateMovie(Long id, Movie movieDetails) {
+    public MovieResponse updateMovie(Long id, MovieRequest request) {
 
-        Optional<Movie> optionalMovie = movieRepository.findById(id);
+        Movie existingMovie = movieRepository.findById(id)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Movie not found with id: " + id
+                        )
+                );
 
-        if (optionalMovie.isEmpty()) {
-            return Optional.empty();
-        }
-
-        Movie existingMovie = optionalMovie.get();
-
-        existingMovie.setTitle(movieDetails.getTitle());
-        existingMovie.setDescription(movieDetails.getDescription());
-        existingMovie.setDurationMinutes(movieDetails.getDurationMinutes());
+        existingMovie.setTitle(request.getTitle());
+        existingMovie.setDescription(request.getDescription());
+        existingMovie.setDurationMinutes(request.getDurationMinutes());
 
         Movie updatedMovie = movieRepository.save(existingMovie);
 
-        return Optional.of(updatedMovie);
+        return convertToResponse(updatedMovie);
     }
 
     // Delete a movie
-    public boolean deleteMovie(Long id) {
+    public void deleteMovie(Long id) {
 
-        if (!movieRepository.existsById(id)) {
-            return false;
-        }
+        Movie movie = movieRepository.findById(id)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Movie not found with id: " + id
+                        )
+                );
 
-        movieRepository.deleteById(id);
+        movieRepository.delete(movie);
+    }
 
-        return true;
+    // Convert Movie Entity into MovieResponse DTO
+    private MovieResponse convertToResponse(Movie movie) {
+
+        return new MovieResponse(
+                movie.getId(),
+                movie.getTitle(),
+                movie.getDescription(),
+                movie.getDurationMinutes()
+        );
     }
 }

@@ -1,13 +1,14 @@
 package com.cinemaapp.cinema.controller;
 
-import com.cinemaapp.cinema.entity.Movie;
+import com.cinemaapp.cinema.dto.MovieRequest;
+import com.cinemaapp.cinema.dto.MovieResponse;
 import com.cinemaapp.cinema.service.MovieService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/movies")
@@ -21,56 +22,45 @@ public class MovieController {
 
     // GET /api/movies
     @GetMapping
-    public List<Movie> getAllMovies() {
+    public List<MovieResponse> getAllMovies() {
         return movieService.getAllMovies();
     }
 
     // GET /api/movies/{id}
     @GetMapping("/{id}")
-    public ResponseEntity<Movie> getMovieById(@PathVariable Long id) {
+    public ResponseEntity<MovieResponse> getMovieById(@PathVariable Long id) {
 
-        Optional<Movie> movie = movieService.getMovieById(id);
+        MovieResponse movie = movieService.getMovieById(id);
 
-        if (movie.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-
-        return ResponseEntity.ok(movie.get());
+        return ResponseEntity.ok(movie);
     }
 
     // POST /api/movies
     @PostMapping
-    public ResponseEntity<Movie> createMovie(@RequestBody Movie movie) {
+    public ResponseEntity<MovieResponse> createMovie(
+            @Valid @RequestBody MovieRequest request) {
 
-        Movie savedMovie = movieService.createMovie(movie);
+        MovieResponse savedMovie = movieService.createMovie(request);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(savedMovie);
     }
 
     // PUT /api/movies/{id}
     @PutMapping("/{id}")
-    public ResponseEntity<Movie> updateMovie(
+    public ResponseEntity<MovieResponse> updateMovie(
             @PathVariable Long id,
-            @RequestBody Movie movieDetails) {
+            @Valid @RequestBody MovieRequest request) {
 
-        Optional<Movie> updatedMovie = movieService.updateMovie(id, movieDetails);
+        MovieResponse updatedMovie = movieService.updateMovie(id, request);
 
-        if (updatedMovie.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-
-        return ResponseEntity.ok(updatedMovie.get());
+        return ResponseEntity.ok(updatedMovie);
     }
 
     // DELETE /api/movies/{id}
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteMovie(@PathVariable Long id) {
 
-        boolean deleted = movieService.deleteMovie(id);
-
-        if (!deleted) {
-            return ResponseEntity.notFound().build();
-        }
+        movieService.deleteMovie(id);
 
         return ResponseEntity.noContent().build();
     }

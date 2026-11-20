@@ -1,10 +1,22 @@
 package com.cinemaapp.cinema.dto;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
+
 public class MovieRequest {
 
+    @NotBlank(message = "Movie title is required")
+    @Size(max = 150, message = "Movie title cannot exceed 150 characters")
     private String title;
+
+    @Size(max = 500, message = "Description cannot exceed 500 characters")
     private String description;
-    private int durationMinutes;
+
+    @NotNull(message = "Movie duration is required")
+    @Positive(message = "Movie duration must be greater than zero")
+    private Integer durationMinutes;
 
     public MovieRequest() {
     }
@@ -25,11 +37,11 @@ public class MovieRequest {
         this.description = description;
     }
 
-    public int getDurationMinutes() {
+    public Integer getDurationMinutes() {
         return durationMinutes;
     }
 
-    public void setDurationMinutes(int durationMinutes) {
+    public void setDurationMinutes(Integer durationMinutes) {
         this.durationMinutes = durationMinutes;
     }
 }

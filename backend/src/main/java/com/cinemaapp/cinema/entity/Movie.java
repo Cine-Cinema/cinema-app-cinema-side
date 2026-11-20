@@ -27,6 +27,12 @@ public class Movie {
     protected Movie() {
     }
 
+    public Movie(String title, String description, int durationMinutes) {
+        this.title = title;
+        this.description = description;
+        this.durationMinutes = durationMinutes;
+    }
+
     public Long getId() {
         return id;
     }
