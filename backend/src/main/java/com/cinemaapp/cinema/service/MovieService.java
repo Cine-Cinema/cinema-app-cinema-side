@@ -6,17 +6,22 @@ import com.cinemaapp.cinema.entity.Movie;
 import com.cinemaapp.cinema.repository.MovieRepository;
 import org.springframework.stereotype.Service;
 import com.cinemaapp.cinema.exception.ResourceNotFoundException;
+import com.cinemaapp.cinema.repository.MovieImageRepository;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
 public class MovieService {
 
     private final MovieRepository movieRepository;
+    private final MovieImageRepository movieImageRepository;
 
-    public MovieService(MovieRepository movieRepository) {
+    public MovieService(
+            MovieRepository movieRepository,
+            MovieImageRepository movieImageRepository
+    ) {
         this.movieRepository = movieRepository;
+        this.movieImageRepository = movieImageRepository;
     }
 
     // Retrieve all movies
@@ -24,7 +29,7 @@ public class MovieService {
 
         return movieRepository.findAll()
                 .stream()
-                .map(this::convertToResponse)
+                .map(this::toResponse)
                 .toList();
     }
 
@@ -38,7 +43,7 @@ public class MovieService {
                         )
                 );
 
-        return convertToResponse(movie);
+        return toResponse(movie);
     }
 
     // Create a new movie
@@ -52,7 +57,7 @@ public class MovieService {
 
         Movie savedMovie = movieRepository.save(movie);
 
-        return convertToResponse(savedMovie);
+        return toResponse(savedMovie);
     }
 
     // Update an existing movie
@@ -71,7 +76,7 @@ public class MovieService {
 
         Movie updatedMovie = movieRepository.save(existingMovie);
 
-        return convertToResponse(updatedMovie);
+        return toResponse(updatedMovie);
     }
 
     // Delete a movie
@@ -87,14 +92,36 @@ public class MovieService {
         movieRepository.delete(movie);
     }
 
-    // Convert Movie Entity into MovieResponse DTO
-    private MovieResponse convertToResponse(Movie movie) {
+    private String buildPosterUrl(Long movieId) {
 
-        return new MovieResponse(
+        boolean posterExists = movieImageRepository.existsById(movieId);
+
+        if (!posterExists) {
+            return null;
+        }
+
+        return "/api/movies/" + movieId + "/poster";
+    }
+
+    private MovieResponse attachPosterUrl(MovieResponse response) {
+
+        String posterUrl = buildPosterUrl(response.getId());
+
+        response.setPosterUrl(posterUrl);
+
+        return response;
+    }
+
+    // Convert Movie Entity into MovieResponse DTO
+    private MovieResponse toResponse(Movie movie) {
+
+        MovieResponse response = new MovieResponse(
                 movie.getId(),
                 movie.getTitle(),
                 movie.getDescription(),
                 movie.getDurationMinutes()
         );
+
+        return attachPosterUrl(response);
     }
 }

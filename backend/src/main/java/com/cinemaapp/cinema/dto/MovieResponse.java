@@ -7,11 +7,14 @@ public class MovieResponse {
     private final String description;
     private final int durationMinutes;
 
+    private String posterUrl;
+
     public MovieResponse(
             Long id,
             String title,
             String description,
             int durationMinutes
+
     ) {
         this.id = id;
         this.title = title;
@@ -33,5 +36,13 @@ public class MovieResponse {
 
     public int getDurationMinutes() {
         return durationMinutes;
+    }
+
+    public String getPosterUrl() {
+        return posterUrl;
+    }
+
+    public void setPosterUrl(String posterUrl) {
+        this.posterUrl = posterUrl;
     }
 }

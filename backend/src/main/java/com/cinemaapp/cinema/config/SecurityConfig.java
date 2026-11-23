@@ -45,16 +45,23 @@ public class SecurityConfig {
                 // Configure which endpoints are public
                 .authorizeHttpRequests(auth -> auth
 
+                        // Public authentication endpoints
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/auth/register",
                                 "/api/auth/login"
                         ).permitAll()
 
-                        // Keep the development hello endpoint public, if present
+                        // Public movie poster retrieval
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/movies/*/poster"
+                        ).permitAll()
+
+                        // Development endpoint
                         .requestMatchers("/api/hello").permitAll()
 
-                        // Require authentication for everything else
+                        // Everything else requires authentication
                         .anyRequest().authenticated()
                 )
 
