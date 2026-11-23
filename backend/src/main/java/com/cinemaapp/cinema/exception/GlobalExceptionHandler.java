@@ -9,6 +9,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -76,5 +77,26 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+    // Handle custom HTTP errors from services
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiErrorResponse> handleResponseStatusException(
+            ResponseStatusException exception,
+            HttpServletRequest request) {
+
+        HttpStatus status = HttpStatus.valueOf(
+                exception.getStatusCode().value()
+        );
+
+        ApiErrorResponse error = new ApiErrorResponse(
+                status.value(),
+                status.getReasonPhrase(),
+                exception.getReason() != null
+                        ? exception.getReason()
+                        : "Request could not be completed.",
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(status).body(error);
     }
 }
