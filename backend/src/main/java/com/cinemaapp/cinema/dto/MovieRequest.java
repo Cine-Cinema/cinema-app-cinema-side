@@ -5,6 +5,12 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
+/**
+ * Request DTO for creating or updating a movie ({@code POST /api/movies} and {@code PUT /api/movies/{id}}).
+ *
+ * <p>Validation limits ({@code 150} chars for title, {@code 500} chars for description,
+ * positive {@code durationMinutes}) mirror the PostgreSQL column constraints in the {@code movie} table.
+ */
 public class MovieRequest {
 
     @NotBlank(message = "Movie title is required")

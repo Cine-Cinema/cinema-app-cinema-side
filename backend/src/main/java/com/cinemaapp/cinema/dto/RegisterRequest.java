@@ -4,6 +4,12 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
+/**
+ * Request DTO for {@code POST /api/auth/register} to register the cinema manager account.
+ *
+ * <p>Password length constraints ({@code 8..100} characters) match security minimums and the
+ * column length before BCrypt hashing.
+ */
 public class RegisterRequest {
 
     @NotBlank(message = "Cinema name is required")

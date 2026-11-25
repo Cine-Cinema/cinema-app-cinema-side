@@ -1,4 +1,8 @@
--- Table 1: Cinema account
+-- =========================================
+-- TABLE 1: CINEMA
+-- =========================================
+-- Stores the single cinema manager account used for JWT authentication and venue profile management.
+-- password holds a BCrypt hash, and email is enforced unique at the database level.
 
 CREATE TABLE IF NOT EXISTS cinema (
     id BIGSERIAL PRIMARY KEY,
@@ -14,7 +18,11 @@ CREATE TABLE IF NOT EXISTS cinema (
 
 
 
--- Table 2: Movie information
+-- =========================================
+-- TABLE 2: MOVIE
+-- =========================================
+-- Stores the cinema's movie catalog. duration_minutes must be positive because ShowtimeService
+-- adds it to show_time to calculate screening end times and hall overlap intervals.
 
 CREATE TABLE IF NOT EXISTS movie (
     id BIGSERIAL PRIMARY KEY,
@@ -31,6 +39,8 @@ CREATE TABLE IF NOT EXISTS movie (
 -- =========================================
 -- TABLE 3: MOVIE_IMAGE
 -- =========================================
+-- Stores binary poster images (BYTEA) in a separate 1-to-1 table keyed by movie_id
+-- so movie catalog queries do not pull large binary blobs unless a poster is requested.
 
 CREATE TABLE IF NOT EXISTS movie_image (
     movie_id BIGINT PRIMARY KEY REFERENCES movie(id),
@@ -50,6 +60,9 @@ CREATE TABLE IF NOT EXISTS movie_image (
 -- =========================================
 -- TABLE 4: SHOWTIME
 -- =========================================
+-- Stores scheduled screenings in the cinema's single hall.
+-- uq_showtime_date_time blocks duplicate start slots at the DB level; ShowtimeService
+-- additionally checks full [start, end) duration overlaps across screenings.
 
 CREATE TABLE IF NOT EXISTS showtime (
     id BIGSERIAL PRIMARY KEY,
@@ -75,6 +88,13 @@ CREATE TABLE IF NOT EXISTS showtime (
 
 
 
+-- =========================================
+-- TABLE 5: RESERVATION
+-- =========================================
+-- Stores customer reservations linked to a showtime (populated by the reservation workflow
+-- and queried read-only by ShowtimeRepository to protect booked showtimes from conflicting edits).
+-- Only CONFIRMED and PAID reservations occupy seats or restrict showtime updates.
+
 CREATE TABLE IF NOT EXISTS reservation (
     id VARCHAR(36) PRIMARY KEY,
     showtime_id BIGINT NOT NULL REFERENCES showtime(id),
@@ -87,6 +107,13 @@ CREATE TABLE IF NOT EXISTS reservation (
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+
+-- =========================================
+-- TABLE 6: RESERVATION_SEAT
+-- =========================================
+-- Maps individual seat numbers (1..total_seats) reserved under each reservation.
+-- Composite PK prevents duplicate seat entries per reservation, while uq_showtime_seat
+-- prevents double-booking the same seat number for the same showtime.
 
 CREATE TABLE IF NOT EXISTS reservation_seat (
     reservation_id VARCHAR(36) NOT NULL REFERENCES reservation(id),

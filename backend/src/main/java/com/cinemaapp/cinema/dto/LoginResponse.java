@@ -1,5 +1,9 @@
 package com.cinemaapp.cinema.dto;
 
+/**
+ * Response DTO returned by {@code POST /api/auth/login} containing the signed JWT
+ * and the HTTP Authorization scheme ({@code "Bearer"}).
+ */
 public class LoginResponse {
 
     private String accessToken;

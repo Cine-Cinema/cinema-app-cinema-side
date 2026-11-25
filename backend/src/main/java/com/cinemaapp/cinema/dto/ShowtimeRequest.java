@@ -9,6 +9,13 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
+/**
+ * Request DTO for scheduling or updating a showtime ({@code POST /api/showtimes} and
+ * {@code PUT /api/showtimes/{id}}).
+ *
+ * <p>Uses {@link DecimalMin} ({@code > 0.00}) and {@link Digits} ({@code integer = 8, fraction = 2})
+ * on {@code price} to match PostgreSQL's {@code NUMERIC(10,2)} column definition.
+ */
 public class ShowtimeRequest {
 
     @NotNull(message = "Movie ID is required")

@@ -10,6 +10,12 @@ import com.cinemaapp.cinema.repository.MovieImageRepository;
 
 import java.util.List;
 
+/**
+ * Service layer managing CRUD operations for the cinema's movie catalog.
+ *
+ * <p>Coordinates {@link MovieRepository} for movie metadata and {@link MovieImageRepository}
+ * to enrich responses with a {@code posterUrl} whenever a movie has an uploaded poster.
+ */
 @Service
 public class MovieService {
 
@@ -24,7 +30,11 @@ public class MovieService {
         this.movieImageRepository = movieImageRepository;
     }
 
-    // Retrieve all movies
+    /**
+     * Returns every movie in the catalog, each enriched with its public {@code posterUrl} if present.
+     *
+     * @return list of all movies as {@link MovieResponse} DTOs
+     */
     public List<MovieResponse> getAllMovies() {
 
         return movieRepository.findAll()
@@ -33,7 +43,13 @@ public class MovieService {
                 .toList();
     }
 
-    // Retrieve one movie by ID
+    /**
+     * Fetches a single movie by its ID.
+     *
+     * @param id movie primary key
+     * @return matching {@link MovieResponse}
+     * @throws ResourceNotFoundException if no movie exists with {@code id}
+     */
     public MovieResponse getMovieById(Long id) {
 
         Movie movie = movieRepository.findById(id)
@@ -46,7 +62,12 @@ public class MovieService {
         return toResponse(movie);
     }
 
-    // Create a new movie
+    /**
+     * Persists a new movie in PostgreSQL.
+     *
+     * @param request validated movie details (title, optional description, duration in minutes)
+     * @return created {@link MovieResponse} with generated ID
+     */
     public MovieResponse createMovie(MovieRequest request) {
 
         Movie movie = new Movie(
@@ -60,7 +81,14 @@ public class MovieService {
         return toResponse(savedMovie);
     }
 
-    // Update an existing movie
+    /**
+     * Updates an existing movie's title, description, and duration.
+     *
+     * @param id      ID of the movie to update
+     * @param request validated replacement values
+     * @return updated {@link MovieResponse}
+     * @throws ResourceNotFoundException if no movie exists with {@code id}
+     */
     public MovieResponse updateMovie(Long id, MovieRequest request) {
 
         Movie existingMovie = movieRepository.findById(id)
@@ -79,7 +107,16 @@ public class MovieService {
         return toResponse(updatedMovie);
     }
 
-    // Delete a movie
+    /**
+     * Deletes a movie by ID if it exists.
+     *
+     * <p>Note: if the movie still has a poster in {@code movie_image} or showtimes in
+     * {@code showtime}, PostgreSQL foreign-key constraints will reject deletion and
+     * {@code GlobalExceptionHandler} will return HTTP 409 Conflict.
+     *
+     * @param id ID of the movie to delete
+     * @throws ResourceNotFoundException if no movie exists with {@code id}
+     */
     public void deleteMovie(Long id) {
 
         Movie movie = movieRepository.findById(id)
@@ -92,6 +129,10 @@ public class MovieService {
         movieRepository.delete(movie);
     }
 
+    /**
+     * Returns the relative public poster endpoint path only if a poster exists in {@code movie_image};
+     * uses {@code existsById} to avoid loading the binary {@code BYTEA} column.
+     */
     private String buildPosterUrl(Long movieId) {
 
         boolean posterExists = movieImageRepository.existsById(movieId);
@@ -112,7 +153,7 @@ public class MovieService {
         return response;
     }
 
-    // Convert Movie Entity into MovieResponse DTO
+    /** Maps a {@link Movie} entity to {@link MovieResponse} and attaches its {@code posterUrl}. */
     private MovieResponse toResponse(Movie movie) {
 
         MovieResponse response = new MovieResponse(

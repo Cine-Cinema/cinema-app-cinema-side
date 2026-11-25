@@ -4,6 +4,13 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
+/**
+ * Response DTO representing a scheduled showtime returned by {@code ShowtimeController}.
+ *
+ * <p>Combines fields from {@link com.cinemaapp.cinema.entity.Showtime} with the associated
+ * movie's title and calculated {@code endDate}/{@code endTime} (so clients know when the
+ * hall frees up, even for screenings that cross midnight).
+ */
 public class ShowtimeResponse {
 
     private final Long id;

@@ -22,15 +22,28 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+/**
+ * Sliced MVC tests for {@link MovieController} verifying HTTP routing, JSON serialization,
+ * validation error responses, and exception-handler mapping without starting a database.
+ *
+ * <p>{@link WebMvcTest} loads only the web layer (controllers, {@code GlobalExceptionHandler},
+ * Jackson, and Bean Validation) and relies on {@link MockitoBean} to mock {@link MovieService}.
+ */
 @WebMvcTest(MovieController.class)
 class MovieControllerTest {
 
+    /** MockMvc simulates HTTP requests and inspects status codes and JSON responses in memory. */
     @Autowired
     private MockMvc mockMvc;
 
+    /** Mocked service bean replacing the real PostgreSQL-backed MovieService in this slice test. */
     @MockitoBean
     private MovieService movieService;
 
+    /**
+     * Verifies {@code GET /api/movies} returns HTTP 200 and serializes movie fields as a JSON array,
+     * ensuring the happy-path controller-to-JSON contract stays intact.
+     */
     @Test
     void getAllMovies_shouldReturnMovieList() throws Exception {
 
@@ -51,6 +64,11 @@ class MovieControllerTest {
                 .andExpect(jsonPath("$[0].durationMinutes").value(169));
     }
 
+    /**
+     * Verifies {@code GET /api/movies/{id}} returns HTTP 404 with a structured {@code ApiErrorResponse}
+     * when {@code MovieService} throws {@link ResourceNotFoundException}, confirming integration
+     * between the controller and {@code GlobalExceptionHandler}.
+     */
     @Test
     void getMovieById_whenMovieDoesNotExist_shouldReturn404() throws Exception {
 
@@ -66,6 +84,11 @@ class MovieControllerTest {
                         .value("Movie not found with id: 999"));
     }
 
+    /**
+     * Verifies {@code POST /api/movies} rejects blank titles and negative durations with HTTP 400
+     * and field-specific validation messages before calling {@code MovieService}, confirming
+     * {@code @Valid} and {@code GlobalExceptionHandler.handleValidationErrors} work together.
+     */
     @Test
     void createMovie_withInvalidData_shouldReturn400() throws Exception {
 

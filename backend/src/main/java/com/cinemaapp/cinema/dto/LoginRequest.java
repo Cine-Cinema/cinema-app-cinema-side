@@ -3,6 +3,12 @@ package com.cinemaapp.cinema.dto;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
+/**
+ * Request DTO for {@code POST /api/auth/login} carrying cinema manager credentials.
+ *
+ * <p>Bean Validation annotations ({@link NotBlank}, {@link Email}) ensure malformed
+ * requests fail fast with HTTP 400 before hitting the database or BCrypt verification.
+ */
 public class LoginRequest {
 
     @NotBlank(message = "Email is required")

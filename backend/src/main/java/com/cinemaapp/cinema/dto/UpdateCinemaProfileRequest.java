@@ -4,6 +4,10 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
+/**
+ * Request DTO for {@code PUT /api/cinema/profile} used to update the cinema's display
+ * name, optional address, and login email.
+ */
 public class UpdateCinemaProfileRequest {
 
     @NotBlank(message = "Cinema name is required")

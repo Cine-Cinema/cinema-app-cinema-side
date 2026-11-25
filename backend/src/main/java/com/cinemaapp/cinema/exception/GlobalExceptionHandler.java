@@ -14,16 +14,30 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+/**
+ * Centralized exception handler for all REST controllers in the application.
+ *
+ * <p>{@link RestControllerAdvice} combines {@code @ControllerAdvice} and {@code @ResponseBody},
+ * allowing methods annotated with {@link ExceptionHandler} to catch exceptions thrown from
+ * controllers or services and return clean JSON responses instead of default stack traces.
+ */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    // Handle validation errors
+    /**
+     * Handles Bean Validation failures triggered by {@code @Valid} on controller {@code @RequestBody} DTOs.
+     *
+     * @param exception contains the field-level validation failures collected by Spring MVC
+     * @return HTTP 400 Bad Request containing a map of {@code fieldName -> errorMessage}
+     */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, String>> handleValidationErrors(
             MethodArgumentNotValidException exception) {
 
+        // LinkedHashMap preserves field insertion order for predictable JSON output
         Map<String, String> errors = new LinkedHashMap<>();
 
+        // Keep the first error message per field if a field fails multiple constraints
         exception.getBindingResult().getFieldErrors().forEach(error -> {
             errors.putIfAbsent(error.getField(), error.getDefaultMessage());
         });
@@ -31,7 +45,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(errors);
     }
 
-    // Handle resources that do not exist
+    /**
+     * Handles missing domain records such as unknown movie IDs, posters, or showtimes.
+     *
+     * @param exception the not-found exception thrown by the service layer
+     * @param request   current HTTP request used to populate the error path
+     * @return HTTP 404 Not Found with a structured {@link ApiErrorResponse}
+     */
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleResourceNotFound(
             ResourceNotFoundException exception,
@@ -47,7 +67,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
 
-    // Handle database constraint violations
+    /**
+     * Translates PostgreSQL integrity errors (such as foreign-key or unique-constraint
+     * violations) into an HTTP 409 Conflict response without leaking database internals.
+     *
+     * @param exception the Spring data-access wrapper around the SQL constraint error
+     * @param request   current HTTP request used to populate the error path
+     * @return HTTP 409 Conflict with a user-safe {@link ApiErrorResponse}
+     */
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiErrorResponse> handleDatabaseConflict(
             DataIntegrityViolationException exception,
@@ -63,7 +90,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
     }
 
-    // Handle invalid or unreadable JSON
+    /**
+     * Handles malformed JSON payloads, missing request bodies, or unparseable field values
+     * (for example an invalid date/time format) before controller validation runs.
+     *
+     * @param exception Jackson/Spring message-conversion error
+     * @param request   current HTTP request used to populate the error path
+     * @return HTTP 400 Bad Request with an {@link ApiErrorResponse}
+     */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiErrorResponse> handleInvalidRequestBody(
             HttpMessageNotReadableException exception,
@@ -78,7 +112,15 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
-    // Handle custom HTTP errors from services
+
+    /**
+     * Formats {@link ResponseStatusException} instances thrown by services (such as 400, 401,
+     * 404, or 409 business-rule failures) into the standard {@link ApiErrorResponse} structure.
+     *
+     * @param exception HTTP status exception raised in the service layer
+     * @param request   current HTTP request used to populate the error path
+     * @return response matching the exception's HTTP status code and reason
+     */
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ApiErrorResponse> handleResponseStatusException(
             ResponseStatusException exception,

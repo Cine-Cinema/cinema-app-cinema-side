@@ -2,6 +2,13 @@ package com.cinemaapp.cinema.dto;
 
 import java.time.LocalDateTime;
 
+/**
+ * Standardized JSON error payload returned for security errors (401/403) and handled
+ * API exceptions (400/404/409).
+ *
+ * <p>Automatically timestamps each error when constructed so clients receive consistent
+ * diagnostic fields across both {@code GlobalExceptionHandler} and {@code ApiErrorResponseWriter}.
+ */
 public class ApiErrorResponse {
 
     private final LocalDateTime timestamp;

@@ -1,5 +1,11 @@
 package com.cinemaapp.cinema.dto;
 
+/**
+ * Response DTO returned after uploading or replacing a movie poster image.
+ *
+ * <p>Returns poster metadata and the public {@code posterUrl} rather than echoing back
+ * the binary image payload.
+ */
 public class MoviePosterResponse {
 
     private final Long movieId;

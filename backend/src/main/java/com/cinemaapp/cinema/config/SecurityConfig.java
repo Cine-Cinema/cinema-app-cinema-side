@@ -14,10 +14,26 @@ import com.cinemaapp.cinema.exception.ApiErrorResponseWriter;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.web.access.AccessDeniedHandler;
 
+/**
+ * Central Spring Security configuration for the stateless JWT-based REST API.
+ *
+ * <p>{@link EnableWebSecurity} activates Spring Security's web filter chain, allowing this
+ * class to define which endpoints are public, how JWTs are validated, and how security
+ * errors are formatted as JSON.
+ */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
+    /**
+     * Configures the HTTP security filter chain applied to incoming API requests.
+     *
+     * @param http                builder used to configure Spring Security rules
+     * @param jwtService          service used by {@link JwtAuthenticationFilter} to verify JWTs
+     * @param errorResponseWriter helper that serializes 401/403 responses into {@code ApiErrorResponse} JSON
+     * @return the configured {@link SecurityFilterChain} bean
+     * @throws Exception if Spring Security fails to build the filter chain
+     */
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
@@ -25,6 +41,7 @@ public class SecurityConfig {
             ApiErrorResponseWriter errorResponseWriter
     ) throws Exception {
 
+        // Instantiate the JWT filter directly so it participates only in this SecurityFilterChain
         JwtAuthenticationFilter jwtFilter =
                 new JwtAuthenticationFilter(
                         jwtService,
@@ -32,43 +49,47 @@ public class SecurityConfig {
                 );
 
         http
-                // Disable CSRF for our stateless Bearer-token API
+                // Disable CSRF protection because clients send JWTs in the Authorization header
+                // rather than relying on browser cookies, so CSRF attacks do not apply.
                 .csrf(csrf -> csrf.disable())
 
-                // Do not create HTTP sessions
+                // Enforce statelessness: Spring Security will never create or read an HttpSession;
+                // every protected request must authenticate itself with a valid Bearer JWT.
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(
                                 SessionCreationPolicy.STATELESS
                         )
                 )
 
-                // Configure which endpoints are public
+                // Define endpoint-level authorization rules (evaluated in declaration order)
                 .authorizeHttpRequests(auth -> auth
 
-                        // Public authentication endpoints
+                        // Public authentication endpoints so a cinema manager can register or log in
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/auth/register",
                                 "/api/auth/login"
                         ).permitAll()
 
-                        // Public movie poster retrieval
+                        // Public movie poster download endpoint so frontend <img> tags and external
+                        // services can display posters without requiring a manager JWT
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/movies/*/poster"
                         ).permitAll()
 
-                        // Development endpoint
+                        // Development test endpoint (whitelisted here if added/used during setup)
                         .requestMatchers("/api/hello").permitAll()
 
-                        // Everything else requires authentication
+                        // All other endpoints (movies, showtimes, profile, poster mutations) require a valid JWT
                         .anyRequest().authenticated()
                 )
 
-                // Return 401 when authentication is required but missing
+                // Customize 401/403 responses so security failures match the same JSON structure
+                // as controller errors instead of returning empty bodies or HTML login pages.
                 .exceptionHandling(exception -> exception
 
-                        // Handle missing authentication
+                        // Triggered when an unauthenticated request hits a protected endpoint
                         .authenticationEntryPoint(
                                 (request, response, authException) ->
                                         errorResponseWriter.writeError(
@@ -79,7 +100,7 @@ public class SecurityConfig {
                                         )
                         )
 
-                        // Handle authenticated users without permission
+                        // Triggered when an authenticated caller lacks required authority for a resource
                         .accessDeniedHandler(
                                 (request, response, accessDeniedException) ->
                                         errorResponseWriter.writeError(
@@ -91,11 +112,12 @@ public class SecurityConfig {
                         )
                 )
 
-                // We use JWT, not form login or HTTP Basic
+                // Disable Spring Security's default browser login form and HTTP Basic challenge
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
 
-                // Execute our JWT filter before username/password authentication
+                // Run JwtAuthenticationFilter before UsernamePasswordAuthenticationFilter so the
+                // SecurityContext is populated from the JWT before authorization rules run
                 .addFilterBefore(
                         jwtFilter,
                         UsernamePasswordAuthenticationFilter.class

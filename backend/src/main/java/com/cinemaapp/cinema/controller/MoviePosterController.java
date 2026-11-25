@@ -16,6 +16,13 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 
+/**
+ * REST controller managing movie poster uploads, replacements, deletions, and public retrieval.
+ *
+ * <p>Write operations ({@code POST}, {@code PUT}, {@code DELETE}) require authentication,
+ * whereas {@code GET /api/movies/{movieId}/poster} is permitted publicly in
+ * {@link com.cinemaapp.cinema.config.SecurityConfig} so browsers can load poster images directly.
+ */
 @RestController
 @RequestMapping("/api/movies")
 public class MoviePosterController {
@@ -26,6 +33,13 @@ public class MoviePosterController {
         this.moviePosterService = moviePosterService;
     }
 
+    /**
+     * Uploads an initial poster image for a movie via {@code multipart/form-data}.
+     *
+     * @param movieId target movie ID
+     * @param file    uploaded image file under form part name {@code "file"}
+     * @return HTTP 201 Created with poster metadata and download URL
+     */
     @PostMapping(
             value = "/{movieId}/poster",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
@@ -43,6 +57,13 @@ public class MoviePosterController {
                 .body(response);
     }
 
+    /**
+     * Replaces an existing poster image for a movie via {@code multipart/form-data}.
+     *
+     * @param movieId target movie ID
+     * @param file    replacement image file under form part name {@code "file"}
+     * @return HTTP 200 OK with updated poster metadata
+     */
     @PutMapping(
             value = "/{movieId}/poster",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
@@ -58,6 +79,12 @@ public class MoviePosterController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Deletes the poster image associated with a movie.
+     *
+     * @param movieId target movie ID
+     * @return HTTP 204 No Content on success
+     */
     @DeleteMapping("/{movieId}/poster")
     public ResponseEntity<Void> deletePoster(
             @PathVariable Long movieId
@@ -68,6 +95,16 @@ public class MoviePosterController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * Publicly streams the raw poster image bytes stored in PostgreSQL.
+     *
+     * <p>Sets the HTTP {@code Content-Type} header from the verified image format
+     * ({@code image/jpeg}, {@code image/png}, or {@code image/webp}) and {@code Content-Length}
+     * so browsers and {@code <img>} elements render the binary payload directly.
+     *
+     * @param movieId target movie ID
+     * @return HTTP 200 OK with raw image bytes
+     */
     @GetMapping("/{movieId}/poster")
     public ResponseEntity<byte[]> getPoster(
             @PathVariable Long movieId
@@ -76,7 +113,7 @@ public class MoviePosterController {
         // Retrieve the image from PostgreSQL
         MovieImage movieImage = moviePosterService.getPoster(movieId);
 
-        // Return the actual image bytes
+        // Return the actual image bytes with matching Content-Type and Content-Length headers
         return ResponseEntity.ok()
                 .contentType(
                         MediaType.parseMediaType(movieImage.getContentType())

@@ -1,5 +1,11 @@
 package com.cinemaapp.cinema.dto;
 
+/**
+ * Response DTO representing a movie returned by {@code MovieController}.
+ *
+ * <p>Includes a dynamically populated {@code posterUrl} field ({@code null} when no poster
+ * has been uploaded yet) derived from {@code movie_image} existence.
+ */
 public class MovieResponse {
 
     private final Long id;
