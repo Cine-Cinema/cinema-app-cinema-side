@@ -340,7 +340,7 @@ public class ShowtimeService {
     ) {
 
         // 1. Find the existing showtime
-        Showtime showtime = showtimeRepository.findById(id)
+        Showtime showtime = showtimeRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Showtime not found with id: " + id
                 ));
@@ -461,7 +461,7 @@ public class ShowtimeService {
     ) {
 
         // Step 1: Find the existing showtime
-        Showtime showtime = showtimeRepository.findById(id)
+        Showtime showtime = showtimeRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Showtime not found with id: " + id
                 ));

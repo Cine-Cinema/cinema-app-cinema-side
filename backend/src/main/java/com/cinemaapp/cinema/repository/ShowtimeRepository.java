@@ -4,6 +4,10 @@ import com.cinemaapp.cinema.entity.Showtime;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
+
+import java.util.Optional;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -126,4 +130,19 @@ public interface ShowtimeRepository
     List<Integer> findReservedSeatNumbers(
             @Param("showtimeId") Long showtimeId
     );
+
+    /**
+     * Retrieves a showtime while acquiring a database write lock.
+     *
+     * Other transactions requesting a conflicting lock on the same
+     * showtime must wait until this transaction completes.
+     *
+     * Used when confirming reservations or changing showtime settings.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM Showtime s WHERE s.id = :showtimeId")
+    Optional<Showtime> findByIdForUpdate(
+            @Param("showtimeId") Long showtimeId
+    );
+
 }
