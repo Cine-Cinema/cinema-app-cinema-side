@@ -60,13 +60,13 @@ public class AuthService {
             );
         }
 
-        // Only one cinema account is allowed in this single-cinema application
-        if (cinemaRepository.count() > 0) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "A cinema account has already been registered"
-            );
-        }
+//        // Only one cinema account is allowed in this single-cinema application
+//        if (cinemaRepository.count() > 0) {
+//            throw new ResponseStatusException(
+//                    HttpStatus.CONFLICT,
+//                    "A cinema account has already been registered"
+//            );
+//        }
 
         // Create the cinema entity
         Cinema cinema = new Cinema();

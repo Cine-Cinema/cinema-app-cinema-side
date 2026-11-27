@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '4.1.2'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'com.google.protobuf' version '0.9.6'
 }
 
 group = 'com.cinemaapp'
@@ -34,8 +35,20 @@ dependencies {
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.13.0'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.13.0'
     runtimeOnly 'org.postgresql:postgresql'
+
+    // Enables Spring Boot integration with Apache Kafka.
+// Includes Kafka clients and Spring Kafka auto-configuration.
+    implementation 'org.springframework.boot:spring-boot-starter-kafka'
+
+    implementation 'org.springframework.boot:spring-boot-starter-grpc-server'
 }
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+protobuf {
+    plugins {
+        grpc {}
+    }
 }

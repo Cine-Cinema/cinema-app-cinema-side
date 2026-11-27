@@ -10,6 +10,8 @@ import com.cinemaapp.cinema.exception.ResourceNotFoundException;
 import com.cinemaapp.cinema.repository.MovieRepository;
 import com.cinemaapp.cinema.repository.ShowtimeRepository;
 import com.cinemaapp.cinema.dto.ShowtimeSeatAvailabilityResponse;
+import com.cinemaapp.cinema.kafka.CatalogRefreshRequestedEvent;
+import org.springframework.context.ApplicationEventPublisher;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -36,14 +38,18 @@ public class ShowtimeService {
             ZoneId.of("Asia/Colombo");
 
     private final ShowtimeRepository showtimeRepository;
+
+    private final ApplicationEventPublisher eventPublisher;
     private final MovieRepository movieRepository;
 
     public ShowtimeService(
             ShowtimeRepository showtimeRepository,
-            MovieRepository movieRepository
+            MovieRepository movieRepository,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.showtimeRepository = showtimeRepository;
         this.movieRepository = movieRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -175,6 +181,9 @@ public class ShowtimeService {
         Showtime savedShowtime =
                 showtimeRepository.saveAndFlush(showtime);
 
+        eventPublisher.publishEvent(
+                new CatalogRefreshRequestedEvent(showtime.getId())
+        );
         // Step 9: Return the response
         return toResponse(savedShowtime, movie);
     }
@@ -434,6 +443,10 @@ public class ShowtimeService {
         showtime.setTotalSeats(request.getTotalSeats());
         showtime.setSeatsPerRow(request.getSeatsPerRow());
 
+        eventPublisher.publishEvent(
+                new CatalogRefreshRequestedEvent(showtime.getId())
+        );
+
         // 10. Save and flush immediately to surface DB constraint errors within this transaction
         Showtime updatedShowtime =
                 showtimeRepository.saveAndFlush(showtime);
@@ -496,6 +509,10 @@ public class ShowtimeService {
         // Step 5: Save the updated showtime
         Showtime updatedShowtime =
                 showtimeRepository.saveAndFlush(showtime);
+
+        eventPublisher.publishEvent(
+                new CatalogRefreshRequestedEvent(showtime.getId())
+        );
 
         // Step 6: Return the updated details
         return toResponse(updatedShowtime);

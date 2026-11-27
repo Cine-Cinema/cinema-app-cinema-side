@@ -14,6 +14,8 @@ import com.cinemaapp.cinema.exception.ResourceNotFoundException;
 import com.cinemaapp.cinema.repository.ReservationRepository;
 import com.cinemaapp.cinema.repository.ReservationSeatRepository;
 import com.cinemaapp.cinema.repository.ShowtimeRepository;
+import com.cinemaapp.cinema.kafka.CatalogRefreshRequestedEvent;
+import org.springframework.context.ApplicationEventPublisher;
 
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
@@ -33,6 +35,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+
+
 
 /**
  * Validates and processes customer reservation requests.
@@ -56,17 +60,20 @@ public class ReservationService {
     private final ReservationSeatRepository reservationSeatRepository;
     private final ShowtimeRepository showtimeRepository;
     private final Validator validator;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ReservationService(
             ReservationRepository reservationRepository,
             ReservationSeatRepository reservationSeatRepository,
             ShowtimeRepository showtimeRepository,
-            Validator validator
+            Validator validator,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.reservationRepository = reservationRepository;
         this.reservationSeatRepository = reservationSeatRepository;
         this.showtimeRepository = showtimeRepository;
         this.validator = validator;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -223,6 +230,11 @@ public class ReservationService {
 
         // 15. Save all selected seats in the same transaction.
         reservationSeatRepository.saveAllAndFlush(seatsToSave);
+
+        // Request a fresh catalog snapshot after this transaction commits.
+        eventPublisher.publishEvent(
+                new CatalogRefreshRequestedEvent(showtime.getId())
+        );
 
         // 16. Return the confirmed result.
         return new ReservationResultResponse(
