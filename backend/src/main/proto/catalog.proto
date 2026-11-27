@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+// Identifies this gRPC API and avoids service-name conflicts.
+package cinecinema.catalog.v1;
+
+// Package for generated Java classes.
+option java_package = "com.cinemaapp.cinema.grpc.generated";
+
+// Generate separate Java classes for messages and services.
+option java_multiple_files = true;
+
+// The gRPC service exposed by the Cinema backend.
+service CatalogService {
+
+  // Fan backend requests the complete catalog.
+  //
+  // The Cinema backend streams one response
+  // message for each showtime.
+  rpc ListShowtimes(ListShowtimesRequest)
+      returns (stream ShowtimeSnapshot);
+}
+
+// Empty request.
+// The Fan backend doesn't need to supply a movie ID,
+// showtime ID, or cinema ID for a complete catalog sync.
+message ListShowtimesRequest {
+}
+
+// One complete showtime catalog snapshot.
+//
+// The field numbers are part of the Protobuf wire format.
+// Once approved, they should remain stable.
+message ShowtimeSnapshot {
+
+  string cinema_name = 1;
+
+  int64 movie_id = 2;
+
+  string title = 3;
+
+  optional string description = 4;
+
+  optional string poster_url = 5;
+
+  int64 showtime_id = 6;
+
+  // Example: "2027-01-15"
+  string show_date = 7;
+
+  // Example: "10:00"
+  string show_time = 8;
+
+  // Exact decimal string, for example "1500.00".
+  // Avoids floating-point rounding for ticket prices.
+  string price = 9;
+
+  int32 total_seats = 10;
+
+  int32 seats_per_row = 11;
+
+  repeated int32 reserved_seats = 12;
+
+  int32 available_seats = 13;
+
+  bool active = 14;
+}

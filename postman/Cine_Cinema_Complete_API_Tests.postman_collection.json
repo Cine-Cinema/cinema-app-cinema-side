@@ -1,0 +1,4063 @@
+{
+	"info": {
+		"_postman_id": "cine-cinema-api-tests-collection",
+		"name": "Cine Cinema - Complete API Tests",
+		"description": "Comprehensive API test collection for the Cine Cinema (Cinema Side) Spring Boot application. Covers authentication, cinema profile, movies, posters, showtimes, seat availability, reservations (dev profile), catalog publishing, and security/negative tests.\n\nEnvironment variables required:\n- baseUrl: e.g. http://localhost:8082\n- token: JWT token (auto-set by login request)\n- cinemaId, movieId, showtimeId, reservationShowtimeId, reservationId, testShowDate, testShowTime, confirmedReservationId",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "00 - Health and Connection Tests",
+			"description": "Basic health/connection checks. Note: /api/hello is whitelisted in security config but controller may not exist.",
+			"item": [
+				{
+					"name": "GET Hello Endpoint",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/hello",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "hello"]
+						},
+						"description": "Health check endpoint. This endpoint is whitelisted (permitAll) in security config, but the controller may not exist. Expect 200 if implemented, or 404 if not."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Response received (200 or 404)', function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+									"});",
+									"",
+									"pm.test('Response time is acceptable', function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(5000);",
+									"});",
+									"",
+									"if (pm.response.code === 200) {",
+									"    pm.test('Hello endpoint is available', function () {",
+									"        pm.expect(pm.response.text()).to.not.be.empty;",
+									"    });",
+									"} else {",
+									"    pm.test('Hello endpoint not implemented (404)', function () {",
+									"        pm.expect(pm.response.code).to.eql(404);",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "01 - Authentication",
+			"description": "Authentication endpoints: registration, login, and validation error scenarios.",
+			"item": [
+				{
+					"name": "Register Cinema Account",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const timestamp = Date.now();",
+									"const testEmail = 'cinematest_' + timestamp + '@test.com';",
+									"const testName = 'Test Cinema ' + timestamp;",
+									"pm.environment.set('testEmail', testEmail);",
+									"pm.environment.set('testName', testName);",
+									"pm.environment.set('testPassword', 'TestPass123!');"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 201 Created', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test('Response has required fields', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('id');",
+									"    pm.expect(jsonData).to.have.property('name');",
+									"    pm.expect(jsonData).to.have.property('email');",
+									"});",
+									"",
+									"pm.test('Response does not contain password', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.not.have.property('password');",
+									"    pm.expect(jsonData).to.not.have.property('passwordHash');",
+									"});",
+									"",
+									"pm.test('Email matches request', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.email).to.eql(pm.environment.get('testEmail'));",
+									"});",
+									"",
+									"pm.test('Name matches request', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.name).to.eql(pm.environment.get('testName'));",
+									"});",
+									"",
+									"pm.test('Save cinemaId', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set('cinemaId', jsonData.id);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"{{testName}}\",\n    \"address\": \"123 Cinema Street, Test City\",\n    \"email\": \"{{testEmail}}\",\n    \"password\": \"{{testPassword}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "register"]
+						},
+						"description": "Register a new cinema account. Public endpoint (no auth required)."
+					},
+					"response": []
+				},
+				{
+					"name": "Login Cinema",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has accessToken', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('accessToken');",
+									"    pm.expect(jsonData.accessToken).to.be.a('string').and.not.be.empty;",
+									"});",
+									"",
+									"pm.test('Token type is Bearer', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('tokenType');",
+									"    pm.expect(jsonData.tokenType).to.eql('Bearer');",
+									"});",
+									"",
+									"pm.test('Save JWT Token', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set('token', jsonData.accessToken);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{testEmail}}\",\n    \"password\": \"{{testPassword}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Login with registered cinema credentials. Saves JWT token to environment."
+					},
+					"response": []
+				},
+				{
+					"name": "Login - Invalid Email",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 401 Unauthorized', function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"",
+									"pm.test('Error response structure', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status', 401);",
+									"    pm.expect(jsonData).to.have.property('error');",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"    pm.expect(jsonData).to.have.property('timestamp');",
+									"    pm.expect(jsonData).to.have.property('path');",
+									"});",
+									"",
+									"pm.test('Error message indicates invalid credentials', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.include('Invalid email or password');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"nonexistent@test.com\",\n    \"password\": \"SomePassword123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Attempt login with a non-existent email address."
+					},
+					"response": []
+				},
+				{
+					"name": "Login - Wrong Password",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 401 Unauthorized', function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"",
+									"pm.test('Error message indicates invalid credentials', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.include('Invalid email or password');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{testEmail}}\",\n    \"password\": \"WrongPassword999!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Attempt login with correct email but wrong password."
+					},
+					"response": []
+				},
+				{
+					"name": "Login - Missing Email",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400 Bad Request', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Validation error for email field', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('email');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"\",\n    \"password\": \"TestPass123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Attempt login with empty email field."
+					},
+					"response": []
+				},
+				{
+					"name": "Login - Missing Password",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400 Bad Request', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Validation error for password field', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('password');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"test@test.com\",\n    \"password\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Attempt login with empty password field."
+					},
+					"response": []
+				},
+				{
+					"name": "Login - Invalid Email Format",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400 Bad Request', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Validation error for email format', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('email');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"not-an-email\",\n    \"password\": \"TestPass123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Attempt login with invalid email format."
+					},
+					"response": []
+				},
+				{
+					"name": "Register - Duplicate Cinema",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 409 Conflict', function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"pm.test('Error response has proper structure', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status', 409);",
+									"    pm.expect(jsonData).to.have.property('error');",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"});",
+									"",
+									"pm.test('Error message indicates duplicate', function () {",
+									"    var jsonData = pm.response.json();",
+									"    var msg = jsonData.message;",
+									"    pm.expect(msg).to.satisfy(function(m) {",
+									"        return m.includes('already registered') || m.includes('already been registered');",
+									"    });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Duplicate Cinema\",\n    \"address\": \"456 Duplicate St\",\n    \"email\": \"{{testEmail}}\",\n    \"password\": \"TestPass123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "register"]
+						},
+						"description": "Attempt to register with an already-registered email. Should return 409."
+					},
+					"response": []
+				},
+				{
+					"name": "Register - Missing Name",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400 Bad Request', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Validation error for name field', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('name');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"\",\n    \"address\": \"123 Test St\",\n    \"email\": \"newcinema@test.com\",\n    \"password\": \"TestPass123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "register"]
+						},
+						"description": "Attempt to register without a name. Should return 400 with validation error."
+					},
+					"response": []
+				},
+				{
+					"name": "Register - Short Password",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400 Bad Request', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Validation error for password field', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('password');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Short Pass Cinema\",\n    \"address\": \"123 Test St\",\n    \"email\": \"shortpass@test.com\",\n    \"password\": \"short\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "register"]
+						},
+						"description": "Attempt to register with a password shorter than 8 characters. Should return 400."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "02 - Cinema Profile Management",
+			"description": "Cinema profile retrieval and update endpoints.",
+			"item": [
+				{
+					"name": "Get Cinema Profile",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has required profile fields', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('id');",
+									"    pm.expect(jsonData).to.have.property('name');",
+									"    pm.expect(jsonData).to.have.property('email');",
+									"});",
+									"",
+									"pm.test('Response has address field', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('address');",
+									"});",
+									"",
+									"pm.test('Email matches registered email', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.email).to.eql(pm.environment.get('testEmail'));",
+									"});",
+									"",
+									"pm.test('ID matches saved cinemaId', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.id).to.eql(pm.environment.get('cinemaId'));",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/cinema/profile",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "cinema", "profile"]
+						},
+						"description": "Get the authenticated cinema's profile."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Cinema Profile",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"pm.environment.set('updatedCinemaName', 'Updated Cinema Name ' + Date.now());",
+									"pm.environment.set('updatedCinemaAddress', '999 Updated Avenue, New City');"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Name was updated', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.name).to.eql(pm.environment.get('updatedCinemaName'));",
+									"});",
+									"",
+									"pm.test('Address was updated', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.address).to.eql(pm.environment.get('updatedCinemaAddress'));",
+									"});",
+									"",
+									"pm.test('Email matches', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.email).to.eql(pm.environment.get('testEmail'));",
+									"});",
+									"",
+									"pm.test('Response has id', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('id');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"{{updatedCinemaName}}\",\n    \"address\": \"{{updatedCinemaAddress}}\",\n    \"email\": \"{{testEmail}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/cinema/profile",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "cinema", "profile"]
+						},
+						"description": "Update the authenticated cinema's profile."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Profile - No Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 401 Unauthorized', function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"",
+									"pm.test('Error response structure', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status', 401);",
+									"    pm.expect(jsonData).to.have.property('error');",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/cinema/profile",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "cinema", "profile"]
+						},
+						"description": "Attempt to get profile without authentication token. Should return 401."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Profile - Invalid Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 401 Unauthorized', function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"",
+									"pm.test('Error response indicates invalid JWT', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status', 401);",
+									"    pm.expect(jsonData.message).to.include('Invalid or expired JWT');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer invalid_token_here_12345"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/cinema/profile",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "cinema", "profile"]
+						},
+						"description": "Attempt to get profile with an invalid JWT token. Should return 401."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Profile - Missing Name",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400 Bad Request', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Validation error for name field', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('name');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"\",\n    \"address\": \"123 Test St\",\n    \"email\": \"{{testEmail}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/cinema/profile",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "cinema", "profile"]
+						},
+						"description": "Attempt to update profile with empty name. Should return 400."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Profile - Invalid Email",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400 Bad Request', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Validation error for email field', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('email');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Valid Name\",\n    \"address\": \"123 Test St\",\n    \"email\": \"not-a-valid-email\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/cinema/profile",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "cinema", "profile"]
+						},
+						"description": "Attempt to update profile with invalid email format. Should return 400."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "03 - Movie Management",
+			"description": "CRUD operations for movies.",
+			"item": [
+				{
+					"name": "Create Movie",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"pm.environment.set('testMovieTitle', 'Postman Test Movie ' + Date.now());",
+									"pm.environment.set('testMovieDescription', 'Test movie created by Postman for API testing');",
+									"pm.environment.set('testMovieDuration', 120);"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 201 Created', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test('Response has movie fields', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('id');",
+									"    pm.expect(jsonData).to.have.property('title');",
+									"    pm.expect(jsonData).to.have.property('description');",
+									"    pm.expect(jsonData).to.have.property('durationMinutes');",
+									"});",
+									"",
+									"pm.test('Title matches request', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.title).to.eql(pm.environment.get('testMovieTitle'));",
+									"});",
+									"",
+									"pm.test('Duration matches request', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.durationMinutes).to.eql(120);",
+									"});",
+									"",
+									"pm.test('Save movieId', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set('movieId', jsonData.id);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"{{testMovieTitle}}\",\n    \"description\": \"{{testMovieDescription}}\",\n    \"durationMinutes\": {{testMovieDuration}}\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/movies",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "movies"]
+						},
+						"description": "Create a new movie. Requires authentication."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Movie by ID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has movie fields', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('id');",
+									"    pm.expect(jsonData).to.have.property('title');",
+									"    pm.expect(jsonData).to.have.property('description');",
+									"    pm.expect(jsonData).to.have.property('durationMinutes');",
+									"});",
+									"",
+									"pm.test('Movie ID matches', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.id).to.eql(parseInt(pm.environment.get('movieId')));",
+									"});",
+									"",
+									"pm.test('Has posterUrl field (may be null)', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('posterUrl');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/movies/{{movieId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "movies", "{{movieId}}"]
+						},
+						"description": "Get a movie by its ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Movies",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response is an array', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.be.an('array');",
+									"});",
+									"",
+									"pm.test('Array has at least one movie', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.length).to.be.greaterThan(0);",
+									"});",
+									"",
+									"pm.test('Each movie has required fields', function () {",
+									"    var jsonData = pm.response.json();",
+									"    jsonData.forEach(function(movie) {",
+									"        pm.expect(movie).to.have.property('id');",
+									"        pm.expect(movie).to.have.property('title');",
+									"        pm.expect(movie).to.have.property('durationMinutes');",
+									"    });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/movies",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "movies"]
+						},
+						"description": "Get all movies for the authenticated cinema."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Movie",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"pm.environment.set('updatedMovieTitle', 'Updated Movie Title ' + Date.now());"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Title was updated', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.title).to.eql(pm.environment.get('updatedMovieTitle'));",
+									"});",
+									"",
+									"pm.test('Duration updated to 150', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.durationMinutes).to.eql(150);",
+									"});",
+									"",
+									"pm.test('Movie ID unchanged', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.id).to.eql(parseInt(pm.environment.get('movieId')));",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"{{updatedMovieTitle}}\",\n    \"description\": \"Updated description for the test movie\",\n    \"durationMinutes\": 150\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/movies/{{movieId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "movies", "{{movieId}}"]
+						},
+						"description": "Update an existing movie by ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Movie - Missing Title",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400 Bad Request', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Validation error for title field', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('title');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"\",\n    \"description\": \"Some description\",\n    \"durationMinutes\": 120\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/movies",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "movies"]
+						},
+						"description": "Attempt to create a movie without a title. Should return 400."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Movie - Negative Duration",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400 Bad Request', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Validation error for durationMinutes', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('durationMinutes');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Negative Duration Movie\",\n    \"description\": \"Test\",\n    \"durationMinutes\": -1\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/movies",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "movies"]
+						},
+						"description": "Attempt to create a movie with negative duration. Should return 400."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Movie - Zero Duration",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400 Bad Request', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Validation error for durationMinutes', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('durationMinutes');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Zero Duration Movie\",\n    \"description\": \"Test\",\n    \"durationMinutes\": 0\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/movies",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "movies"]
+						},
+						"description": "Attempt to create a movie with zero duration. Should return 400 (@Positive)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Movie - Invalid ID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 404 Not Found', function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test('Error response structure', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status', 404);",
+									"    pm.expect(jsonData).to.have.property('error', 'Not Found');",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"});",
+									"",
+									"pm.test('Error message mentions movie not found', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.include('Movie not found');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/movies/99999",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "movies", "99999"]
+						},
+						"description": "Attempt to get a movie with non-existent ID. Should return 404."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Movie - No Auth",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 401 Unauthorized', function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"",
+									"pm.test('Error response structure', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status', 401);",
+									"    pm.expect(jsonData).to.have.property('error');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Unauthorized Movie\",\n    \"description\": \"Should not be created\",\n    \"durationMinutes\": 90\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/movies",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "movies"]
+						},
+						"description": "Attempt to create a movie without authentication. Should return 401."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Movie - Description Too Long",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"var longDesc = '';",
+									"for (var i = 0; i < 501; i++) {",
+									"    longDesc += 'A';",
+									"}",
+									"pm.environment.set('longDescription', longDesc);"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400 Bad Request', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Validation error for description field', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('description');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Long Description Movie\",\n    \"description\": \"{{longDescription}}\",\n    \"durationMinutes\": 90\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/movies",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "movies"]
+						},
+						"description": "Attempt to create a movie with a description longer than 500 characters. Should return 400."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "04 - Movie Poster Management",
+			"description": "Movie poster upload, retrieval, replacement, and deletion.",
+			"item": [
+				{
+					"name": "Upload Poster",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 201 Created', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test('Response has poster fields', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('movieId');",
+									"    pm.expect(jsonData).to.have.property('contentType');",
+									"    pm.expect(jsonData).to.have.property('posterUrl');",
+									"    pm.expect(jsonData).to.have.property('sizeBytes');",
+									"});",
+									"",
+									"pm.test('Movie ID matches', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.movieId).to.eql(parseInt(pm.environment.get('movieId')));",
+									"});",
+									"",
+									"pm.test('Content type is an image type', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.contentType).to.match(/^image\\/(jpeg|png|webp)$/);",
+									"});",
+									"",
+									"pm.test('Poster URL is valid', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.posterUrl).to.include('/api/movies/');",
+									"    pm.expect(jsonData.posterUrl).to.include('/poster');",
+									"});",
+									"",
+									"pm.test('Size is positive', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.sizeBytes).to.be.greaterThan(0);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": "",
+									"description": "Select a JPEG, PNG, or WebP image file (max 2 MB)"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/movies/{{movieId}}/poster",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "movies", "{{movieId}}", "poster"]
+						},
+						"description": "Upload a poster image for a movie. Requires authentication. Select a valid JPEG, PNG, or WebP image file under 2 MB."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Poster (Public)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Content-Type is an image type', function () {",
+									"    var contentType = pm.response.headers.get('Content-Type');",
+									"    pm.expect(contentType).to.match(/^image\\/(jpeg|png|webp)/);",
+									"});",
+									"",
+									"pm.test('Response body is not empty', function () {",
+									"    pm.expect(pm.response.responseSize).to.be.greaterThan(0);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/movies/{{movieId}}/poster",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "movies", "{{movieId}}", "poster"]
+						},
+						"description": "Get the poster image for a movie. This is a public endpoint - no authentication required. Returns raw image bytes."
+					},
+					"response": []
+				},
+				{
+					"name": "Replace Poster",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has poster fields', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('movieId');",
+									"    pm.expect(jsonData).to.have.property('contentType');",
+									"    pm.expect(jsonData).to.have.property('posterUrl');",
+									"    pm.expect(jsonData).to.have.property('sizeBytes');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": "",
+									"description": "Select a replacement JPEG, PNG, or WebP image file (max 2 MB)"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/movies/{{movieId}}/poster",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "movies", "{{movieId}}", "poster"]
+						},
+						"description": "Replace an existing poster image for a movie. Requires authentication."
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Poster - Already Exists",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 409 Conflict', function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"pm.test('Error message about existing poster', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.include('already has a poster');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": "",
+									"description": "Select a JPEG, PNG, or WebP image file"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/movies/{{movieId}}/poster",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "movies", "{{movieId}}", "poster"]
+						},
+						"description": "Attempt to upload a poster when one already exists (use POST, not PUT). Should return 409."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Poster - No Poster Movie",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Create a temporary movie without a poster",
+									"const baseUrl = pm.environment.get('baseUrl');",
+									"const token = pm.environment.get('token');",
+									"",
+									"pm.sendRequest({",
+									"    url: baseUrl + '/api/movies',",
+									"    method: 'POST',",
+									"    header: {",
+									"        'Content-Type': 'application/json',",
+									"        'Authorization': 'Bearer ' + token",
+									"    },",
+									"    body: {",
+									"        mode: 'raw',",
+									"        raw: JSON.stringify({",
+									"            title: 'No Poster Movie ' + Date.now(),",
+									"            description: 'Movie without poster for testing',",
+									"            durationMinutes: 90",
+									"        })",
+									"    }",
+									"}, function (err, res) {",
+									"    if (!err && res.code === 201) {",
+									"        var movie = res.json();",
+									"        pm.environment.set('noPosterMovieId', movie.id);",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 404 Not Found', function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test('Error message about poster not found', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.include('Poster not found');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/movies/{{noPosterMovieId}}/poster",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "movies", "{{noPosterMovieId}}", "poster"]
+						},
+						"description": "Attempt to get poster for a movie that has no poster. Should return 404."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Poster",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 204 No Content', function () {",
+									"    pm.response.to.have.status(204);",
+									"});",
+									"",
+									"pm.test('Response body is empty', function () {",
+									"    pm.expect(pm.response.text()).to.be.oneOf(['', undefined]);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/movies/{{movieId}}/poster",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "movies", "{{movieId}}", "poster"]
+						},
+						"description": "Delete the poster for a movie. Requires authentication."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Poster - Already Deleted",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 404 Not Found', function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test('Error message about poster not found', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.include('Poster not found');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/movies/{{movieId}}/poster",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "movies", "{{movieId}}", "poster"]
+						},
+						"description": "Attempt to delete a poster that was already deleted. Should return 404."
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Poster - Invalid Movie ID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 404 Not Found', function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test('Error message about movie not found', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.include('Movie not found');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": "",
+									"description": "Select any image file"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/movies/99999/poster",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "movies", "99999", "poster"]
+						},
+						"description": "Attempt to upload poster for a non-existent movie. Should return 404."
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Poster - No Auth",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 401 Unauthorized', function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"",
+									"pm.test('Error response structure', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status', 401);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": "",
+									"description": "Select any image file"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/movies/{{movieId}}/poster",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "movies", "{{movieId}}", "poster"]
+						},
+						"description": "Attempt to upload poster without authentication. Should return 401."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "05 - Showtime Management",
+			"description": "Showtime CRUD operations and validation tests.",
+			"item": [
+				{
+					"name": "Create Showtime",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const futureDate = new Date();",
+									"futureDate.setDate(futureDate.getDate() + 30);",
+									"const dateStr = futureDate.toISOString().split('T')[0];",
+									"pm.environment.set('testShowDate', dateStr);",
+									"pm.environment.set('testShowTime', '10:00:00');"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 201 Created', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test('Response has showtime fields', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('id');",
+									"    pm.expect(jsonData).to.have.property('movieId');",
+									"    pm.expect(jsonData).to.have.property('movieTitle');",
+									"    pm.expect(jsonData).to.have.property('showDate');",
+									"    pm.expect(jsonData).to.have.property('showTime');",
+									"    pm.expect(jsonData).to.have.property('endDate');",
+									"    pm.expect(jsonData).to.have.property('endTime');",
+									"    pm.expect(jsonData).to.have.property('price');",
+									"    pm.expect(jsonData).to.have.property('totalSeats');",
+									"    pm.expect(jsonData).to.have.property('seatsPerRow');",
+									"    pm.expect(jsonData).to.have.property('active');",
+									"});",
+									"",
+									"pm.test('Showtime is active by default', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.active).to.be.true;",
+									"});",
+									"",
+									"pm.test('Movie ID matches', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.movieId).to.eql(parseInt(pm.environment.get('movieId')));",
+									"});",
+									"",
+									"pm.test('End date and time are calculated', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.endDate).to.not.be.null;",
+									"    pm.expect(jsonData.endTime).to.not.be.null;",
+									"});",
+									"",
+									"pm.test('Price matches', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.price).to.eql(1500.00);",
+									"});",
+									"",
+									"pm.test('Total seats matches', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.totalSeats).to.eql(100);",
+									"});",
+									"",
+									"pm.test('Seats per row matches', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.seatsPerRow).to.eql(10);",
+									"});",
+									"",
+									"pm.test('Save showtimeId', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set('showtimeId', jsonData.id);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"movieId\": {{movieId}},\n    \"showDate\": \"{{testShowDate}}\",\n    \"showTime\": \"{{testShowTime}}\",\n    \"price\": 1500.00,\n    \"totalSeats\": 100,\n    \"seatsPerRow\": 10\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes"]
+						},
+						"description": "Create a new showtime for a movie. Pre-request script generates a future date."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Showtime by ID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has all showtime fields', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('id');",
+									"    pm.expect(jsonData).to.have.property('movieId');",
+									"    pm.expect(jsonData).to.have.property('movieTitle');",
+									"    pm.expect(jsonData).to.have.property('showDate');",
+									"    pm.expect(jsonData).to.have.property('showTime');",
+									"    pm.expect(jsonData).to.have.property('endDate');",
+									"    pm.expect(jsonData).to.have.property('endTime');",
+									"    pm.expect(jsonData).to.have.property('price');",
+									"    pm.expect(jsonData).to.have.property('totalSeats');",
+									"    pm.expect(jsonData).to.have.property('seatsPerRow');",
+									"    pm.expect(jsonData).to.have.property('active');",
+									"});",
+									"",
+									"pm.test('Showtime ID matches', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.id).to.eql(parseInt(pm.environment.get('showtimeId')));",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes/{{showtimeId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes", "{{showtimeId}}"]
+						},
+						"description": "Get a showtime by its ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Showtimes",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response is an array', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.be.an('array');",
+									"});",
+									"",
+									"pm.test('Array has at least one showtime', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.length).to.be.greaterThan(0);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes"]
+						},
+						"description": "Get all showtimes for the authenticated cinema."
+					},
+					"response": []
+				},
+				{
+					"name": "Filter Showtimes by Date",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response is an array', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.be.an('array');",
+									"});",
+									"",
+									"pm.test('All returned showtimes match the filter date', function () {",
+									"    var jsonData = pm.response.json();",
+									"    var filterDate = pm.environment.get('testShowDate');",
+									"    jsonData.forEach(function(showtime) {",
+									"        pm.expect(showtime.showDate).to.eql(filterDate);",
+									"    });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes?date={{testShowDate}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes"],
+							"query": [
+								{
+									"key": "date",
+									"value": "{{testShowDate}}"
+								}
+							]
+						},
+						"description": "Filter showtimes by date."
+					},
+					"response": []
+				},
+				{
+					"name": "Filter Showtimes by Movie",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response is an array', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.be.an('array');",
+									"});",
+									"",
+									"pm.test('All returned showtimes match the movie ID', function () {",
+									"    var jsonData = pm.response.json();",
+									"    var movieId = parseInt(pm.environment.get('movieId'));",
+									"    jsonData.forEach(function(showtime) {",
+									"        pm.expect(showtime.movieId).to.eql(movieId);",
+									"    });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes?movieId={{movieId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes"],
+							"query": [
+								{
+									"key": "movieId",
+									"value": "{{movieId}}"
+								}
+							]
+						},
+						"description": "Filter showtimes by movie ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Filter by Date and Movie",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response is an array', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.be.an('array');",
+									"});",
+									"",
+									"pm.test('All results match both filters', function () {",
+									"    var jsonData = pm.response.json();",
+									"    var filterDate = pm.environment.get('testShowDate');",
+									"    var movieId = parseInt(pm.environment.get('movieId'));",
+									"    jsonData.forEach(function(showtime) {",
+									"        pm.expect(showtime.showDate).to.eql(filterDate);",
+									"        pm.expect(showtime.movieId).to.eql(movieId);",
+									"    });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes?date={{testShowDate}}&movieId={{movieId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes"],
+							"query": [
+								{
+									"key": "date",
+									"value": "{{testShowDate}}"
+								},
+								{
+									"key": "movieId",
+									"value": "{{movieId}}"
+								}
+							]
+						},
+						"description": "Filter showtimes by both date and movie ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Showtime",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Price was updated to 1800', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.price).to.eql(1800.00);",
+									"});",
+									"",
+									"pm.test('Showtime ID unchanged', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.id).to.eql(parseInt(pm.environment.get('showtimeId')));",
+									"});",
+									"",
+									"pm.test('Movie ID unchanged', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.movieId).to.eql(parseInt(pm.environment.get('movieId')));",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"movieId\": {{movieId}},\n    \"showDate\": \"{{testShowDate}}\",\n    \"showTime\": \"{{testShowTime}}\",\n    \"price\": 1800.00,\n    \"totalSeats\": 100,\n    \"seatsPerRow\": 10\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes/{{showtimeId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes", "{{showtimeId}}"]
+						},
+						"description": "Update an existing showtime. Change price to 1800."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Showtime - Past Date",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400 Bad Request', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Error message about past date', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.include('future');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"movieId\": {{movieId}},\n    \"showDate\": \"2020-01-01\",\n    \"showTime\": \"10:00:00\",\n    \"price\": 1500.00,\n    \"totalSeats\": 100,\n    \"seatsPerRow\": 10\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes"]
+						},
+						"description": "Attempt to create showtime with a past date. Should return 400."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Showtime - Invalid Movie ID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 404 Not Found', function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test('Error message about movie not found', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.include('Movie not found');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"movieId\": 99999,\n    \"showDate\": \"{{testShowDate}}\",\n    \"showTime\": \"10:00:00\",\n    \"price\": 1500.00,\n    \"totalSeats\": 100,\n    \"seatsPerRow\": 10\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes"]
+						},
+						"description": "Attempt to create showtime with non-existent movie ID. Should return 404."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Showtime - Seats Per Row > Total",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400 Bad Request', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Error message about seats per row', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.include('Seats per row cannot exceed total seats');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"movieId\": {{movieId}},\n    \"showDate\": \"{{testShowDate}}\",\n    \"showTime\": \"20:00:00\",\n    \"price\": 1500.00,\n    \"totalSeats\": 5,\n    \"seatsPerRow\": 10\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes"]
+						},
+						"description": "Attempt to create showtime where seatsPerRow exceeds totalSeats. Should return 400."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Showtime - Zero Price",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400 Bad Request', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Validation error for price', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('price');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"movieId\": {{movieId}},\n    \"showDate\": \"{{testShowDate}}\",\n    \"showTime\": \"22:00:00\",\n    \"price\": 0,\n    \"totalSeats\": 100,\n    \"seatsPerRow\": 10\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes"]
+						},
+						"description": "Attempt to create showtime with zero price (@DecimalMin exclusive). Should return 400."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Showtime - Negative Total Seats",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400 Bad Request', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Validation error for totalSeats', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('totalSeats');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"movieId\": {{movieId}},\n    \"showDate\": \"{{testShowDate}}\",\n    \"showTime\": \"22:00:00\",\n    \"price\": 1500.00,\n    \"totalSeats\": -1,\n    \"seatsPerRow\": 10\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes"]
+						},
+						"description": "Attempt to create showtime with negative totalSeats. Should return 400."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Showtime - Missing Fields",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400 Bad Request', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Validation errors present', function () {",
+									"    var jsonData = pm.response.json();",
+									"    // Should have validation errors for required fields",
+									"    var keys = Object.keys(jsonData);",
+									"    pm.expect(keys.length).to.be.greaterThan(0);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes"]
+						},
+						"description": "Attempt to create showtime with empty body. Should return 400 with multiple validation errors."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Overlapping Showtime",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 409 Conflict', function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"pm.test('Error message about overlap', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.include('overlaps');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"movieId\": {{movieId}},\n    \"showDate\": \"{{testShowDate}}\",\n    \"showTime\": \"{{testShowTime}}\",\n    \"price\": 2000.00,\n    \"totalSeats\": 50,\n    \"seatsPerRow\": 5\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes"]
+						},
+						"description": "Attempt to create a showtime at the same date/time as the existing one. Should return 409."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Showtimes - Invalid Movie ID Filter",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400 Bad Request', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Error message about movie ID', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.include('Movie ID must be positive');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes?movieId=-1",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes"],
+							"query": [
+								{
+									"key": "movieId",
+									"value": "-1"
+								}
+							]
+						},
+						"description": "Filter showtimes with negative movie ID. Should return 400."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Showtime - Invalid ID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 404 Not Found', function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test('Error message about showtime not found', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.include('Showtime not found');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes/99999",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes", "99999"]
+						},
+						"description": "Attempt to get a showtime with non-existent ID. Should return 404."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "06 - Showtime Seat Availability",
+			"description": "Seat availability endpoints for showtimes.",
+			"item": [
+				{
+					"name": "Get Seat Availability",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has seat availability fields', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('showtimeId');",
+									"    pm.expect(jsonData).to.have.property('totalSeats');",
+									"    pm.expect(jsonData).to.have.property('seatsPerRow');",
+									"    pm.expect(jsonData).to.have.property('reservedSeats');",
+									"    pm.expect(jsonData).to.have.property('availableSeats');",
+									"    pm.expect(jsonData).to.have.property('active');",
+									"});",
+									"",
+									"pm.test('Showtime ID matches', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.showtimeId).to.eql(parseInt(pm.environment.get('showtimeId')));",
+									"});",
+									"",
+									"pm.test('Reserved seats is an array', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.reservedSeats).to.be.an('array');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes/{{showtimeId}}/seats",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes", "{{showtimeId}}", "seats"]
+						},
+						"description": "Get seat availability for a showtime."
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Initial Availability",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Reserved seats is empty initially', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.reservedSeats).to.be.an('array').that.is.empty;",
+									"});",
+									"",
+									"pm.test('Available seats equals total seats', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.availableSeats).to.eql(jsonData.totalSeats);",
+									"});",
+									"",
+									"pm.test('Showtime is active', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.active).to.be.true;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes/{{showtimeId}}/seats",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes", "{{showtimeId}}", "seats"]
+						},
+						"description": "Verify that initially no seats are reserved and all seats are available."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Seats - Invalid Showtime",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 404 Not Found', function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test('Error message about showtime not found', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.include('Showtime not found');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes/99999/seats",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes", "99999", "seats"]
+						},
+						"description": "Attempt to get seat availability for a non-existent showtime. Should return 404."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "07 - Reservation Testing (DEV PROFILE)",
+			"description": "Reservation processing tests. These endpoints are only available when the application runs with the 'dev' Spring profile.",
+			"item": [
+				{
+					"name": "Create Second Test Showtime for Reservations",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const futureDate = new Date();",
+									"futureDate.setDate(futureDate.getDate() + 31);",
+									"const dateStr = futureDate.toISOString().split('T')[0];",
+									"pm.environment.set('reservationShowDate', dateStr);",
+									"pm.environment.set('reservationShowTime', '14:00:00');"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 201 Created', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test('Save reservationShowtimeId', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set('reservationShowtimeId', jsonData.id);",
+									"});",
+									"",
+									"pm.test('Showtime is active', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.active).to.be.true;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"movieId\": {{movieId}},\n    \"showDate\": \"{{reservationShowDate}}\",\n    \"showTime\": \"{{reservationShowTime}}\",\n    \"price\": 1500.00,\n    \"totalSeats\": 100,\n    \"seatsPerRow\": 10\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes"]
+						},
+						"description": "Create a second showtime specifically for reservation testing. Uses a different date/time (14:00) to avoid overlap."
+					},
+					"response": []
+				},
+				{
+					"name": "Confirm Valid Reservation",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
+									"    const r = Math.random() * 16 | 0;",
+									"    const v = c === 'x' ? r : (r & 0x3 | 0x8);",
+									"    return v.toString(16);",
+									"});",
+									"pm.environment.set('reservationId', uuid);",
+									"pm.environment.set('confirmedReservationId', uuid);",
+									"pm.environment.set('seatNumber1', 1);",
+									"pm.environment.set('seatNumber2', 2);"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Reservation status is CONFIRMED', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql('CONFIRMED');",
+									"});",
+									"",
+									"pm.test('Reason is null for confirmed reservation', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.reason).to.be.null;",
+									"});",
+									"",
+									"pm.test('Reservation ID matches', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.reservationId).to.eql(pm.environment.get('reservationId'));",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"reservationId\": \"{{reservationId}}\",\n    \"showtimeId\": {{reservationShowtimeId}},\n    \"customerId\": 1,\n    \"customerName\": \"Test Customer\",\n    \"seatNumbers\": [1, 2]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dev/reservations",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "dev", "reservations"]
+						},
+						"description": "(DEV PROFILE) Process a valid reservation. Should confirm seats 1 and 2."
+					},
+					"response": []
+				},
+				{
+					"name": "Check Seats After Reservation",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Reserved seats contains seats 1 and 2', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.reservedSeats).to.include(1);",
+									"    pm.expect(jsonData.reservedSeats).to.include(2);",
+									"});",
+									"",
+									"pm.test('Available seats decreased by 2', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.availableSeats).to.eql(jsonData.totalSeats - 2);",
+									"});",
+									"",
+									"pm.test('Save available seats count for later comparison', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set('availableSeatsAfterReservation', jsonData.availableSeats);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes/{{reservationShowtimeId}}/seats",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes", "{{reservationShowtimeId}}", "seats"]
+						},
+						"description": "Check seat availability after making a reservation. Seats 1 and 2 should be reserved."
+					},
+					"response": []
+				},
+				{
+					"name": "Reject Duplicate Seats",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
+									"    const r = Math.random() * 16 | 0;",
+									"    const v = c === 'x' ? r : (r & 0x3 | 0x8);",
+									"    return v.toString(16);",
+									"});",
+									"pm.environment.set('duplicateSeatReservationId', uuid);"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Reservation status is REJECTED', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql('REJECTED');",
+									"});",
+									"",
+									"pm.test('Reason mentions already reserved', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.reason).to.include('already reserved');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"reservationId\": \"{{duplicateSeatReservationId}}\",\n    \"showtimeId\": {{reservationShowtimeId}},\n    \"customerId\": 2,\n    \"customerName\": \"Another Customer\",\n    \"seatNumbers\": [1, 2]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dev/reservations",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "dev", "reservations"]
+						},
+						"description": "(DEV PROFILE) Attempt to reserve already-reserved seats. Should be REJECTED."
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Available Seats Not Decreased Again",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Available seats unchanged after rejection', function () {",
+									"    var jsonData = pm.response.json();",
+									"    var expectedAvailable = parseInt(pm.environment.get('availableSeatsAfterReservation'));",
+									"    pm.expect(jsonData.availableSeats).to.eql(expectedAvailable);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes/{{reservationShowtimeId}}/seats",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes", "{{reservationShowtimeId}}", "seats"]
+						},
+						"description": "Verify that available seats did not decrease after a rejected reservation."
+					},
+					"response": []
+				},
+				{
+					"name": "Resend Original Reservation ID (Idempotent)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Reservation status is CONFIRMED (idempotent)', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql('CONFIRMED');",
+									"});",
+									"",
+									"pm.test('Reservation ID matches original', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.reservationId).to.eql(pm.environment.get('confirmedReservationId'));",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"reservationId\": \"{{confirmedReservationId}}\",\n    \"showtimeId\": {{reservationShowtimeId}},\n    \"customerId\": 1,\n    \"customerName\": \"Test Customer\",\n    \"seatNumbers\": [1, 2]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dev/reservations",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "dev", "reservations"]
+						},
+						"description": "(DEV PROFILE) Resend the original confirmed reservation with the same UUID and data. Should return CONFIRMED (idempotent behavior)."
+					},
+					"response": []
+				},
+				{
+					"name": "Reject Duplicate Seat Numbers in Request",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
+									"    const r = Math.random() * 16 | 0;",
+									"    const v = c === 'x' ? r : (r & 0x3 | 0x8);",
+									"    return v.toString(16);",
+									"});",
+									"pm.environment.set('duplicateInRequestReservationId', uuid);"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Reservation status is REJECTED', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql('REJECTED');",
+									"});",
+									"",
+									"pm.test('Reason mentions duplicate seat numbers', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.reason).to.include('duplicate');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"reservationId\": \"{{duplicateInRequestReservationId}}\",\n    \"showtimeId\": {{reservationShowtimeId}},\n    \"customerId\": 3,\n    \"customerName\": \"Duplicate Seat Customer\",\n    \"seatNumbers\": [3, 3]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dev/reservations",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "dev", "reservations"]
+						},
+						"description": "(DEV PROFILE) Attempt reservation with duplicate seat numbers [3,3] in the same request. Should be REJECTED."
+					},
+					"response": []
+				},
+				{
+					"name": "Reject Invalid Seat Number",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
+									"    const r = Math.random() * 16 | 0;",
+									"    const v = c === 'x' ? r : (r & 0x3 | 0x8);",
+									"    return v.toString(16);",
+									"});",
+									"pm.environment.set('invalidSeatReservationId', uuid);"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Reservation status is REJECTED', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql('REJECTED');",
+									"});",
+									"",
+									"pm.test('Reason mentions invalid seat number', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.reason).to.include('Invalid seat number');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"reservationId\": \"{{invalidSeatReservationId}}\",\n    \"showtimeId\": {{reservationShowtimeId}},\n    \"customerId\": 4,\n    \"customerName\": \"Invalid Seat Customer\",\n    \"seatNumbers\": [999]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dev/reservations",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "dev", "reservations"]
+						},
+						"description": "(DEV PROFILE) Attempt reservation with seat number 999 that exceeds totalSeats. Should be REJECTED."
+					},
+					"response": []
+				},
+				{
+					"name": "Reject Missing Customer Name",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
+									"    const r = Math.random() * 16 | 0;",
+									"    const v = c === 'x' ? r : (r & 0x3 | 0x8);",
+									"    return v.toString(16);",
+									"});",
+									"pm.environment.set('missingNameReservationId', uuid);"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400 Bad Request', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Validation error for customerName', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('customerName');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"reservationId\": \"{{missingNameReservationId}}\",\n    \"showtimeId\": {{reservationShowtimeId}},\n    \"customerId\": 5,\n    \"customerName\": \"\",\n    \"seatNumbers\": [5]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dev/reservations",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "dev", "reservations"]
+						},
+						"description": "(DEV PROFILE) Attempt reservation without customerName. Should return 400 validation error."
+					},
+					"response": []
+				},
+				{
+					"name": "Reject Invalid Reservation ID Format",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400 Bad Request', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Validation error for reservationId', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('reservationId');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"reservationId\": \"not-a-valid-uuid\",\n    \"showtimeId\": {{reservationShowtimeId}},\n    \"customerId\": 6,\n    \"customerName\": \"Bad UUID Customer\",\n    \"seatNumbers\": [6]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dev/reservations",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "dev", "reservations"]
+						},
+						"description": "(DEV PROFILE) Attempt reservation with non-UUID format reservationId. Should return 400."
+					},
+					"response": []
+				},
+				{
+					"name": "Reject Invalid Showtime ID",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
+									"    const r = Math.random() * 16 | 0;",
+									"    const v = c === 'x' ? r : (r & 0x3 | 0x8);",
+									"    return v.toString(16);",
+									"});",
+									"pm.environment.set('invalidShowtimeReservationId', uuid);"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 404 Not Found', function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test('Error response structure', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status', 404);",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"reservationId\": \"{{invalidShowtimeReservationId}}\",\n    \"showtimeId\": 99999,\n    \"customerId\": 7,\n    \"customerName\": \"Invalid Showtime Customer\",\n    \"seatNumbers\": [7]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dev/reservations",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "dev", "reservations"]
+						},
+						"description": "(DEV PROFILE) Attempt reservation with non-existent showtime ID. Should return 404."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "08 - Showtime Status Toggle",
+			"description": "Toggle showtime active/inactive status and verify reservation behavior.",
+			"item": [
+				{
+					"name": "Deactivate Showtime",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Showtime is now inactive', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.active).to.be.false;",
+									"});",
+									"",
+									"pm.test('Showtime ID matches', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.id).to.eql(parseInt(pm.environment.get('reservationShowtimeId')));",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"active\": false\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes/{{reservationShowtimeId}}/status",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes", "{{reservationShowtimeId}}", "status"]
+						},
+						"description": "Deactivate a showtime by setting active to false."
+					},
+					"response": []
+				},
+				{
+					"name": "Reject Booking on Inactive Showtime",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
+									"    const r = Math.random() * 16 | 0;",
+									"    const v = c === 'x' ? r : (r & 0x3 | 0x8);",
+									"    return v.toString(16);",
+									"});",
+									"pm.environment.set('inactiveShowtimeReservationId', uuid);"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Reservation status is REJECTED', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql('REJECTED');",
+									"});",
+									"",
+									"pm.test('Reason mentions not accepting reservations', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.reason).to.include('not accepting reservations');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"reservationId\": \"{{inactiveShowtimeReservationId}}\",\n    \"showtimeId\": {{reservationShowtimeId}},\n    \"customerId\": 8,\n    \"customerName\": \"Inactive Showtime Customer\",\n    \"seatNumbers\": [10]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dev/reservations",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "dev", "reservations"]
+						},
+						"description": "(DEV PROFILE) Attempt reservation on an inactive showtime. Should be REJECTED."
+					},
+					"response": []
+				},
+				{
+					"name": "Reactivate Showtime",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Showtime is now active again', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.active).to.be.true;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"active\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes/{{reservationShowtimeId}}/status",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes", "{{reservationShowtimeId}}", "status"]
+						},
+						"description": "Reactivate the showtime by setting active to true."
+					},
+					"response": []
+				},
+				{
+					"name": "Status Toggle - Missing Active Field",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400 Bad Request', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Validation error present', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('active');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes/{{reservationShowtimeId}}/status",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes", "{{reservationShowtimeId}}", "status"]
+						},
+						"description": "Attempt to toggle status with empty body (missing active field). Should return 400."
+					},
+					"response": []
+				},
+				{
+					"name": "Status Toggle - Invalid Showtime",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 404 Not Found', function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test('Error message about showtime not found', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.include('Showtime not found');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"active\": false\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/showtimes/99999/status",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "showtimes", "99999", "status"]
+						},
+						"description": "Attempt to toggle status of a non-existent showtime. Should return 404."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "09 - Development-Only APIs (DEV PROFILE)",
+			"description": "Development-only endpoints for catalog publishing. Only available when application runs with 'dev' Spring profile.",
+			"item": [
+				{
+					"name": "Publish Catalog Snapshot",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 OK', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Result is PUBLISHED', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.result).to.eql('PUBLISHED');",
+									"});",
+									"",
+									"pm.test('Has showtimeId in response', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('showtimeId');",
+									"});",
+									"",
+									"pm.test('Has topic in response', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('topic');",
+									"    pm.expect(jsonData.topic).to.eql('cinema.catalog');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"showtimeId\": {{showtimeId}},\n    \"cinemaName\": \"Test Cinema\",\n    \"movieTitle\": \"Test Movie\",\n    \"showDate\": \"2026-12-15\",\n    \"showTime\": \"10:00:00\",\n    \"price\": 1500.00,\n    \"totalSeats\": 100,\n    \"seatsPerRow\": 10,\n    \"availableSeats\": 100\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dev/catalog/publish",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "dev", "catalog", "publish"]
+						},
+						"description": "(DEV PROFILE) Publish a catalog snapshot for testing. The request body is a Map<String, Object> that must contain a numeric showtimeId."
+					},
+					"response": []
+				},
+				{
+					"name": "Publish Catalog - Missing Showtime ID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400 Bad Request', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Error message about missing showtimeId', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.include('numeric showtimeId');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"cinemaName\": \"Test Cinema\",\n    \"movieTitle\": \"Test Movie\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dev/catalog/publish",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "dev", "catalog", "publish"]
+						},
+						"description": "(DEV PROFILE) Attempt to publish catalog without showtimeId. Should return 400."
+					},
+					"response": []
+				},
+				{
+					"name": "Publish Catalog - Invalid Showtime ID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400 Bad Request', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Error message about numeric showtimeId', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.include('numeric showtimeId');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"showtimeId\": \"abc\",\n    \"cinemaName\": \"Test Cinema\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dev/catalog/publish",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "dev", "catalog", "publish"]
+						},
+						"description": "(DEV PROFILE) Attempt to publish catalog with non-numeric showtimeId. Should return 400."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "10 - Negative and Security Tests",
+			"description": "Security-related tests: missing/invalid tokens, malformed requests, wrong HTTP methods, non-existent endpoints.",
+			"item": [
+				{
+					"name": "Access Protected Endpoint Without Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 401 Unauthorized', function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"",
+									"pm.test('Error response has proper structure', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status', 401);",
+									"    pm.expect(jsonData).to.have.property('error');",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"    pm.expect(jsonData).to.have.property('timestamp');",
+									"    pm.expect(jsonData).to.have.property('path');",
+									"});",
+									"",
+									"pm.test('Error message mentions authentication', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.include('Authentication required');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/movies",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "movies"]
+						},
+						"description": "Attempt to access a protected endpoint (GET /api/movies) without an authentication token."
+					},
+					"response": []
+				},
+				{
+					"name": "Access Protected Endpoint With Invalid Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 401 Unauthorized', function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"",
+									"pm.test('Error response has proper structure', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status', 401);",
+									"    pm.expect(jsonData).to.have.property('error');",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"});",
+									"",
+									"pm.test('Error message mentions invalid JWT', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.include('Invalid or expired JWT');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer invalid_token_abcdef123456"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/movies",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "movies"]
+						},
+						"description": "Attempt to access a protected endpoint with an invalid Bearer token."
+					},
+					"response": []
+				},
+				{
+					"name": "Send Invalid JSON",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400 Bad Request', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Error message about invalid JSON', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"    pm.expect(jsonData.message).to.satisfy(function(msg) {",
+									"        return msg.includes('invalid JSON') || msg.includes('Request body is missing');",
+									"    });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{{{"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/movies",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "movies"]
+						},
+						"description": "Send malformed JSON to a POST endpoint. Should return 400 with message about invalid JSON."
+					},
+					"response": []
+				},
+				{
+					"name": "Send Missing Request Body",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 400 Bad Request', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Error response present', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/movies",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "movies"]
+						},
+						"description": "Send a POST request with no body. Should return 400."
+					},
+					"response": []
+				},
+				{
+					"name": "Send Wrong HTTP Method",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 405 or 401', function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([401, 405]);",
+									"});",
+									"",
+									"pm.test('Error response present', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"    pm.expect(jsonData).to.have.property('error');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/cinema/profile",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "cinema", "profile"]
+						},
+						"description": "Send DELETE to an endpoint that only supports GET/PUT. Should return 405 Method Not Allowed (or 401 if auth check comes first)."
+					},
+					"response": []
+				},
+				{
+					"name": "Access Non-existent Endpoint",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 401 or 404', function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([401, 404]);",
+									"});",
+									"",
+									"pm.test('Error response present', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"    pm.expect(jsonData).to.have.property('error');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/nonexistent",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "nonexistent"]
+						},
+						"description": "Access a non-existent API endpoint. Should return 401 (if security filter intercepts first) or 404."
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8082",
+			"type": "string"
+		}
+	]
+}
